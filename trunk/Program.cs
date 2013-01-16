@@ -160,8 +160,6 @@ namespace crypter
                         for (int bt; (bt = cs.ReadByte()) != -1; ++ln)
                             bf[ln] = (byte)bt;
 
-                        //++ln;
-
                         ms.Close();
                         cs.Close();
                     }
@@ -169,7 +167,13 @@ namespace crypter
             }
 
             rm.Clear();
-            return bf;
+
+            byte[] rt = new byte[ln];
+
+            while (--ln > -1)
+                rt[ln] = bf[ln];
+
+            return rt;
         }
 
         //----------------------------------------------------------------------------------
