@@ -80,9 +80,10 @@ namespace crypter
                 {
                     using (CryptoStream cs = new CryptoStream(ms, ct, CryptoStreamMode.Write))
                     {
-                        cs.Write(src, 0, src.Length);
-                        cs.FlushFinalBlock();
+                        for (long i = 0, l = src.Length; i < l; ++i)
+                            cs.WriteByte(src[i]);
 
+                        cs.FlushFinalBlock();
                         rt = ms.ToArray();
 
                         ms.Close();
@@ -147,7 +148,7 @@ namespace crypter
 
             RijndaelManaged rm = new RijndaelManaged();
             byte[]          bf = new byte[src.Length];
-            int             ln = 0;
+            long            ln = 0;
 
             rm.Mode = CipherMode.CBC;
             using (ICryptoTransform ct = rm.CreateDecryptor(pd.GetBytes(keysize / 8), iv))
@@ -156,7 +157,10 @@ namespace crypter
                 {
                     using (CryptoStream cs = new CryptoStream(ms, ct, CryptoStreamMode.Read))
                     {
-                        ln = cs.Read(bf, 0, bf.Length);
+                        for (int bt; (bt = cs.ReadByte()) != -1; ++ln)
+                            bf[ln] = (byte)bt;
+
+                        //++ln;
 
                         ms.Close();
                         cs.Close();
@@ -165,12 +169,7 @@ namespace crypter
             }
 
             rm.Clear();
-            byte[] rt = new byte[ln];
-
-            while (--ln > -1)
-                rt[ln] = bf[ln];
-
-            return rt;
+            return bf;
         }
 
         //----------------------------------------------------------------------------------
@@ -424,8 +423,12 @@ namespace crypter
                     if (File.Exists(ifn))
                     {
                         BinaryReader br = new BinaryReader(File.Open(ifn, FileMode.Open));
+                        long         ln = br.BaseStream.Length;
+                        byte[]       bf = new byte[ln];
 
-                        byte[] bf = br.ReadBytes((int)br.BaseStream.Length);
+                        for (long i = 0; i < ln; ++i)
+                            bf[i] = br.ReadByte();
+
                         br.Close();
 
                         Messenger.Print
