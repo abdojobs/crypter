@@ -27,21 +27,7 @@ namespace crypter
 {
     class Program
     {
-        private static bool m_bl = true;
-
-        //----------------------------------------------------------------------------------
-
-        /*
-        private static string EncodeToBase64 (string src)
-        {
-            return Convert.ToBase64String(ASCIIEncoding.ASCII.GetBytes(src));
-        }
-
-        private static string DecodeFromBase64 (string src)
-        {
-            return ASCIIEncoding.ASCII.GetString(Convert.FromBase64String(src));
-        }
-        */
+        private static bool  m_bl = true;
 
         //----------------------------------------------------------------------------------
 
@@ -98,44 +84,16 @@ namespace crypter
 
         //----------------------------------------------------------------------------------
 
-        /*
-        private static string EncodeStringToAes
-        (
-              string src
-            , string pwd
-            , string salt      = Program.SALT
-            , string algorithm = Program.ALGORITHM
-            , string siv       = Program.IV
-            , int    keysize   = 256
-            , int    ipwd      = 2
-        ){
-            return Convert.ToBase64String
-            (
-                  EncodeToAes
-                  (
-                      Encoding.UTF8.GetBytes(src)
-                    , pwd
-                    , salt
-                    , algorithm
-                    , siv
-                    , keysize
-                    , ipwd
-                  )
-            );
-        }
-        */
-
-        //----------------------------------------------------------------------------------
-
         private static byte[] DecodeFromAes
         (
-              byte[] src
-            , string pwd
-            , string salt      = Program.SALT
-            , string algorithm = Program.ALGORITHM
-            , string siv       = Program.IV
-            , int    keysize   = 256
-            , int    ipwd      = 2
+              byte[]   src
+            , string   pwd
+            , ref long length 
+            , string   salt      = Program.SALT
+            , string   algorithm = Program.ALGORITHM
+            , string   siv       = Program.IV
+            , int      keysize   = 256
+            , int      ipwd      = 2
         ){
             byte[]              iv = Encoding.ASCII.GetBytes(siv);
             PasswordDeriveBytes pd = new PasswordDeriveBytes
@@ -148,8 +106,8 @@ namespace crypter
 
             RijndaelManaged rm = new RijndaelManaged();
             byte[]          bf = new byte[src.Length];
-            long            ln = 0;
 
+            length  = 0;
             rm.Mode = CipherMode.CBC;
             using (ICryptoTransform ct = rm.CreateDecryptor(pd.GetBytes(keysize / 8), iv))
             {
@@ -157,8 +115,8 @@ namespace crypter
                 {
                     using (CryptoStream cs = new CryptoStream(ms, ct, CryptoStreamMode.Read))
                     {
-                        for (int bt; (bt = cs.ReadByte()) != -1; ++ln)
-                            bf[ln] = (byte)bt;
+                        for (int bt; (bt = cs.ReadByte()) != -1; ++length)
+                            bf[length] = (byte)bt;
 
                         ms.Close();
                         cs.Close();
@@ -167,42 +125,8 @@ namespace crypter
             }
 
             rm.Clear();
-
-            byte[] rt = new byte[ln];
-
-            while (--ln > -1)
-                rt[ln] = bf[ln];
-
-            return rt;
+            return bf;
         }
-
-        //----------------------------------------------------------------------------------
-
-        /*
-        private static string DecodeStringFromAes
-        (
-              string src
-            , string pwd
-            , string salt      = Program.SALT
-            , string algorithm = Program.ALGORITHM
-            , string siv       = Program.IV
-            , int    keysize   = 256
-            , int    ipwd      = 2
-        ){
-            byte[] bd = DecodeFromAes
-            (
-                  Convert.FromBase64String(src)
-                , pwd
-                , salt
-                , algorithm
-                , siv
-                , ipwd
-                , keysize
-            );
-
-            return Encoding.UTF8.GetString(bd, 0, bd.Length);
-        }
-        */
 
         //----------------------------------------------------------------------------------
 
@@ -457,6 +381,8 @@ namespace crypter
                                 (
                                     ASCIIEncoding.ASCII.GetString(bf)
                                 );
+
+                                ln = bf.Length;
                                 break;
 
                             case "aes":
@@ -464,10 +390,14 @@ namespace crypter
                                     throw new Exception("Invalid password!");
 
                                 if (op == 1)
+                                {
                                     bf = Program.EncodeToAes(bf, pwd, salt, algorithm, iv, iks);
+                                    ln = bf.Length;
+                                }
 
                                 else if (op == 2)
-                                    bf = Program.DecodeFromAes(bf, pwd, salt, algorithm, iv, iks);
+                                    bf = Program.DecodeFromAes(bf, pwd, ref ln, salt, algorithm, iv, iks);
+
                                 break;
 
                             default:
@@ -510,7 +440,13 @@ namespace crypter
                                 }
                             }
 
-                            File.WriteAllBytes(ofn, bf);
+                            BinaryWriter bw = new BinaryWriter(File.Open(ofn, FileMode.CreateNew));
+                            
+                            for (long i = 0; i < ln; ++i)
+                                bw.Write(bf[i]);
+
+                            bw.Close();
+
                             Messenger.Print(Messenger.Icon.INFORMATION, "Done!\n");
                         }
                     }
