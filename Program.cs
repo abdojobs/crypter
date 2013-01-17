@@ -386,8 +386,22 @@ namespace crypter
                                 break;
 
                             case "aes":
-                                if (pwd.Length == 0)
-                                    throw new Exception("Invalid password!");
+                                while (pwd.Length == 0)
+                                {
+                                    Messenger.Print(Messenger.Icon.WARNING, "Password: ");
+
+                                    do
+                                    {
+                                        ConsoleKeyInfo ki = Console.ReadKey(true);
+
+                                        if (ki.Key == ConsoleKey.Enter)
+                                            break;
+
+                                        pwd += ki.KeyChar;
+                                        Console.Write('*');
+                                    }
+                                    while (true);
+                                }
 
                                 if (op == 1)
                                 {
