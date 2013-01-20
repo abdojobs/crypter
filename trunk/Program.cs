@@ -177,7 +177,8 @@ namespace crypter
                   "\t\r<1>\r crypter -o myfile.b64 -c b64 -e myfile.txt\n"                            +
                   "\t\r<2>\r crypter -o myfile.txt -c b64 -d myfile.b64\n"                            +
                   "\t\r<3>\r crypter -o myfile.aes -c aes -p \"my password\" -e myfile.bin\n"         +
-                  "\t\r<4>\r crypter -o myfile.bin -c aes -p \"my password\" -d myfile.aes\n"
+                  "\t\r<4>\r crypter -o myfile.bin -c aes -p \"my password\" -d myfile.aes\n"         +
+                  "\t\r<5>\r crypter -o myfile.aes -c aes -e myfile.bin\n"
 
                 , new ConsoleColor[]
                   {
@@ -227,6 +228,12 @@ namespace crypter
                       , ConsoleColor.White
                       , ConsoleColor.Gray
 
+                      , ConsoleColor.White
+                      , ConsoleColor.Gray
+
+                      , ConsoleColor.White
+                      , ConsoleColor.Gray
+                      
                       , ConsoleColor.White
                       , ConsoleColor.Gray
                   }
@@ -397,8 +404,34 @@ namespace crypter
                                         if (ki.Key == ConsoleKey.Enter)
                                             break;
 
-                                        pwd += ki.KeyChar;
-                                        Console.Write('*');
+                                        if (ki.Key == ConsoleKey.Backspace)
+                                        {
+                                            if (pwd.Length > 0)
+                                            {
+                                                pwd = pwd.Remove(pwd.Length - 1);
+                                                Console.SetCursorPosition
+                                                (
+                                                      Console.CursorLeft - 1
+                                                    , Console.CursorTop
+                                                );
+
+                                                Console.Write(' ');
+                                                Console.SetCursorPosition
+                                                (
+                                                      Console.CursorLeft - 1
+                                                    , Console.CursorTop
+                                                );
+                                            }
+                                        }
+
+                                        else if 
+                                        (
+                                            ((byte)ki.KeyChar > 31 && (byte)ki.KeyChar < 127) || 
+                                            ((byte)ki.KeyChar > 128)
+                                        ){
+                                            pwd += ki.KeyChar;
+                                            Console.Write('*');
+                                        }
                                     }
                                     while (true);
                                 }
