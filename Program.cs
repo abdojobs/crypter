@@ -39,13 +39,14 @@ namespace crypter
 
         private static byte[] EncodeToAes
         (
-              byte[] src
-            , string pwd
-            , string salt      = Program.SALT                                                // Salt to encrypt with.
-            , string algorithm = Program.ALGORITHM                                           // SHA1 or MD5.
-            , string siv       = Program.IV                                                  // Initial Vector Needs to be 16 ASCII characters long.
-            , int    keysize   = 256                                                         // Can be 128, 192, or 256
-            , int    ipwd      = 2                                                           // Number of iterations to do.
+              byte[]   src
+            , string   pwd
+            , ref long length
+            , string   salt      = Program.SALT                                              // Salt to encrypt with.
+            , string   algorithm = Program.ALGORITHM                                         // SHA1 or MD5.
+            , string   siv       = Program.IV                                                // Initial Vector Needs to be 16 ASCII characters long.
+            , int      keysize   = 256                                                       // Can be 128, 192, or 256
+            , int      ipwd      = 2                                                         // Number of iterations to do.
         ){
             byte[]              iv = Encoding.ASCII.GetBytes(siv);
             PasswordDeriveBytes pd = new PasswordDeriveBytes
@@ -66,11 +67,13 @@ namespace crypter
                 {
                     using (CryptoStream cs = new CryptoStream(ms, ct, CryptoStreamMode.Write))
                     {
-                        for (long i = 0, l = src.Length; i < l; ++i)
+                        for (long i = 0; i < length; ++i)
                             cs.WriteByte(src[i]);
 
                         cs.FlushFinalBlock();
-                        rt = ms.ToArray();
+
+                        length = ms.Length;
+                        rt     = ms.ToArray();
 
                         ms.Close();
                         cs.Close();
@@ -437,10 +440,7 @@ namespace crypter
                                 }
 
                                 if (op == 1)
-                                {
-                                    bf = Program.EncodeToAes(bf, pwd, salt, algorithm, iv, iks);
-                                    ln = bf.Length;
-                                }
+                                    bf = Program.EncodeToAes(bf, pwd, ref ln, salt, algorithm, iv, iks);
 
                                 else if (op == 2)
                                     bf = Program.DecodeFromAes(bf, pwd, ref ln, salt, algorithm, iv, iks);
