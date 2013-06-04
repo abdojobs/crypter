@@ -108,7 +108,7 @@ namespace crypter
             );
 
             RijndaelManaged rm = new RijndaelManaged();
-            byte[]          bf = new byte[src.Length];
+            byte[]          bf = new byte[length];
 
             length  = 0;
             rm.Mode = CipherMode.CBC;
