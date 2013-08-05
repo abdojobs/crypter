@@ -37,7 +37,7 @@ namespace crypter
 
         //----------------------------------------------------------------------------------
 
-        private static byte[] EncodeToAes
+        private static byte[] EncryptToAes
         (
               byte[]   src
             , string   pwd
@@ -87,7 +87,7 @@ namespace crypter
 
         //----------------------------------------------------------------------------------
 
-        private static byte[] DecodeFromAes
+        private static byte[] DecryptFromAes
         (
               byte[]   src
             , string   pwd
@@ -162,10 +162,10 @@ namespace crypter
             (
                   "\n Usage:\n\n\t\rcrypter [options...] input-file-name\n"                           +
                   "\n \rOptions:\n\n"                                                                 +
-                  "\t\r-c  --codec           \rb64 (Base 64) or AES (Advanced Encryption"             +
+                  "\t\r-m  --mode            \rb64 (Base 64) or AES (Advanced Encryption"             +
                   "\n\t\t\t      Standard).\n\n"                                                      +
-                  "\t\r-e  --encode          \rEncode operation indicator.\n"                         +
-                  "\t\r-d  --decode          \rDecode operation indicator.\n\n"                       +
+                  "\t\r-e  --encrypt-encode  \rEncrypt or encode operation indicator.\n"              +
+                  "\t\r-d  --decrypt-decode  \rDecrypt or decode operation indicator.\n\n"            +
                   "\t\r-k  --key-size        \rFor AES only. 128, 192, or 256 (By default).\n"        +
                   "\t\r-p  --password        \rFor AES only. Word or phrase. Required parameter.\n"   +
                   "\t\r-s  --salt            \rFor AES only. By default: \"" + Program.SALT + "\".\n" +
@@ -177,11 +177,11 @@ namespace crypter
                   "\n\t\t\t      asking.\n\n"                                                         +
                   "\t\r-h  --help            \rShow this screen.\n"                                   +
                   "\n \rSamples:\n\n"                                                                 +
-                  "\t\r<1>\r crypter -o myfile.b64 -c b64 -e myfile.txt\n"                            +
-                  "\t\r<2>\r crypter -o myfile.txt -c b64 -d myfile.b64\n"                            +
-                  "\t\r<3>\r crypter -o myfile.aes -c aes -p \"my password\" -e myfile.bin\n"         +
-                  "\t\r<4>\r crypter -o myfile.bin -c aes -p \"my password\" -d myfile.aes\n"         +
-                  "\t\r<5>\r crypter -o myfile.aes -c aes -e myfile.bin\n"
+                  "\t\r<1>\r crypter -o myfile.b64 -m b64 -e myfile.txt\n"                            +
+                  "\t\r<2>\r crypter -o myfile.txt -m b64 -d myfile.b64\n"                            +
+                  "\t\r<3>\r crypter -o myfile.aes -m aes -p \"my password\" -e myfile.bin\n"         +
+                  "\t\r<4>\r crypter -o myfile.bin -m aes -p \"my password\" -d myfile.aes\n"         +
+                  "\t\r<5>\r crypter -o myfile.aes -m aes -e myfile.bin\n"
 
                 , new ConsoleColor[]
                   {
@@ -251,7 +251,7 @@ namespace crypter
             string algorithm = Program.ALGORITHM;
             string iv        = Program.IV;
             string pwd       = string.Empty;
-            string codec     = string.Empty;
+            string mode      = string.Empty;
             string ifn       = string.Empty;
             string ofn       = string.Empty;
             byte   op        = 0;
@@ -272,12 +272,12 @@ namespace crypter
                         switch (args[i].ToLower())
                         {
                             case "-e":
-                            case "--encode":
+                            case "--encrypt-encode":
                                 op = 1;
                                 break;
 
                             case "-d":
-                            case "--decode":
+                            case "--decrypt-decode":
                                 op = 2;
                                 break;
 
@@ -310,9 +310,9 @@ namespace crypter
                                 pwd = args[++i];
                                 break;
 
-                            case "-c":
-                            case "--codec":
-                                codec = args[++i].ToLower();
+                            case "-m":
+                            case "--mode":
+                                mode = args[++i].ToLower();
                                 break;
 
                             case "-a":
@@ -368,18 +368,9 @@ namespace crypter
                             bf[i] = br.ReadByte();
 
                         br.Close();
+                        Messenger.Print(Messenger.Icon.INFORMATION, "Processing. Please wait...");
 
-                        Messenger.Print
-                        (
-                              Messenger.Icon.INFORMATION
-                            , String.Format
-                              (
-                                    "{0}, please wait... "
-                                  , op == 1 ? "Encoding" : "Decoding"
-                              )
-                        );
-
-                        switch (codec)
+                        switch (mode)
                         {
                             case "b64":
                                 if (op == 1) bf = ASCIIEncoding.ASCII.GetBytes
@@ -440,18 +431,21 @@ namespace crypter
                                 }
 
                                 if (op == 1)
-                                    bf = Program.EncodeToAes(bf, pwd, ref ln, salt, algorithm, iv, iks);
+                                    bf = Program.EncryptToAes(bf, pwd, ref ln, salt, algorithm, iv, iks);
 
                                 else if (op == 2)
-                                    bf = Program.DecodeFromAes(bf, pwd, ref ln, salt, algorithm, iv, iks);
+                                    bf = Program.DecryptFromAes(bf, pwd, ref ln, salt, algorithm, iv, iks);
 
                                 break;
 
                             default:
-                                throw new Exception("Codec no found!");
+                                throw new Exception("Mode no found!");
                         }
 
-                        if (ofn.Length > 0)
+                        if (ofn.Length < 1)
+                            Messenger.Print(Messenger.Icon.ERROR, "Output file name no found!\n");
+
+                        else
                         {
                             if (File.Exists(ofn))
                             {
@@ -488,7 +482,7 @@ namespace crypter
                             }
 
                             BinaryWriter bw = new BinaryWriter(File.Open(ofn, FileMode.CreateNew));
-                            
+
                             for (long i = 0; i < ln; ++i)
                                 bw.Write(bf[i]);
 
