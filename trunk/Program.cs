@@ -31,37 +31,65 @@ namespace crypter
 
         //----------------------------------------------------------------------------------
 
-        private const string SALT      = "PkZrST6";
-        private const string IV        = "AgTxp96*Zf8e12Xy";
-        private const string ALGORITHM = "SHA1";
+        private const string SALT = "PkZrST68";
+        private const string IV   = "AgTxp96*Zf8e12Xy";
+        private const string HASH = "SHA256";
+        private const int    INUM = 2;
+
+        //--------------------------------------------------------------------------------
+
+        private static byte[] KeyGen
+        (
+              string pwd
+            , string salt                                                                    // Salt to encrypt with.
+            , string hash                                                                    // MD5, SHA1, or SHA256.
+            , int    keysize                                                                 // Can be 128, 192, or 256
+            , int    inum
+        ){
+            switch ((hash = hash.ToUpper()))
+            {
+                case "SHA256":
+                    Rfc2898DeriveBytes rd = new Rfc2898DeriveBytes
+                    (
+                          pwd
+                        , Encoding.ASCII.GetBytes(salt)
+                        , inum
+                    );
+
+                    return rd.GetBytes(keysize / 8);
+
+                default:
+                    PasswordDeriveBytes pd = new PasswordDeriveBytes
+                    (
+                          pwd
+                        , Encoding.ASCII.GetBytes(salt)
+                        , hash
+                        , inum
+                    );
+
+                    return pd.GetBytes(keysize / 8);
+            }
+        }
 
         //----------------------------------------------------------------------------------
 
-        private static byte[] EncryptToAes
+        private static byte[] Encrypt
         (
               byte[]   src
             , string   pwd
             , ref long length
-            , string   salt      = Program.SALT                                              // Salt to encrypt with.
-            , string   algorithm = Program.ALGORITHM                                         // SHA1 or MD5.
-            , string   siv       = Program.IV                                                // Initial Vector Needs to be 16 ASCII characters long.
-            , int      keysize   = 256                                                       // Can be 128, 192, or 256
-            , int      ipwd      = 2                                                         // Number of iterations to do.
+            , string   salt
+            , string   hash                                         
+            , string   siv                                                                   // Initial Vector Needs to be 16 ASCII characters long.
+            , int      keysize                                                      
+            , int      inum                                       
         ){
-            byte[]              iv = Encoding.ASCII.GetBytes(siv);
-            PasswordDeriveBytes pd = new PasswordDeriveBytes
-            (
-                  pwd
-                , Encoding.ASCII.GetBytes(salt)
-                , algorithm
-                , ipwd
-            );
-
-            RijndaelManaged rm  = new RijndaelManaged();
+            RijndaelManaged rm = new RijndaelManaged();
+            byte[]          iv = Encoding.ASCII.GetBytes(siv);
             byte[]          rt  = null;
 
             rm.Mode = CipherMode.CBC;
-            using (ICryptoTransform ct = rm.CreateEncryptor(pd.GetBytes(keysize / 8), iv))
+            using (ICryptoTransform ct = rm.CreateEncryptor(KeyGen(pwd, salt, hash, keysize, inum), iv))
             {
                 using (MemoryStream ms = new MemoryStream())
                 {
@@ -87,32 +115,24 @@ namespace crypter
 
         //----------------------------------------------------------------------------------
 
-        private static byte[] DecryptFromAes
+        private static byte[] Decrypt
         (
               byte[]   src
             , string   pwd
             , ref long length 
-            , string   salt      = Program.SALT
-            , string   algorithm = Program.ALGORITHM
-            , string   siv       = Program.IV
-            , int      keysize   = 256
-            , int      ipwd      = 2
+            , string   salt
+            , string   hash
+            , string   siv
+            , int      keysize
+            , int      inum
         ){
-            byte[]              iv = Encoding.ASCII.GetBytes(siv);
-            PasswordDeriveBytes pd = new PasswordDeriveBytes
-            (
-                  pwd
-                , Encoding.ASCII.GetBytes(salt)
-                , algorithm
-                , ipwd
-            );
-
             RijndaelManaged rm = new RijndaelManaged();
+            byte[]          iv = Encoding.ASCII.GetBytes(siv);
             byte[]          bf = new byte[length];
 
             length  = 0;
             rm.Mode = CipherMode.CBC;
-            using (ICryptoTransform ct = rm.CreateDecryptor(pd.GetBytes(keysize / 8), iv))
+            using (ICryptoTransform ct = rm.CreateDecryptor(KeyGen(pwd, salt, hash, keysize, inum), iv))
             {
                 using (MemoryStream ms = new MemoryStream(src))
                 {
@@ -168,14 +188,18 @@ namespace crypter
                   "\t\r-d  --decrypt-decode  \rDecrypt or decode operation indicator.\n\n"            +
                   "\t\r-k  --key-size        \rFor AES only. 128, 192, or 256 (By default).\n"        +
                   "\t\r-p  --password        \rFor AES only. Word or phrase. Required parameter.\n"   +
-                  "\t\r-s  --salt            \rFor AES only. By default: \"" + Program.SALT + "\".\n" +
-                  "\t\r-a  --algorithm       \rFor AES only. MD5 or SHA1 (By default).\n"             +
+                  "\t\r-s  --salt            \rFor AES only. At least 8 characters for SHA256"        +
+                  "\n\t\t\t      (By default: \"" + Program.SALT + "\". Old: \"PkZrST6\").\n\n"       +
+                  "\t\r-h  --hash            \rFor AES only. MD5, SHA1 or SHA256 (By default).\n"     +
                   "\t\r-i  --initial-vector  \rFor AES only. Needs to be 16 ASCII characte"           +
                   "rs\n\t\t\t      long (By default: \"" + Program.IV + "\").\n\n"                    +
+                  "\t\r-n  --num-iterations  \rNumber of iterations to do. Range from 1 to "          +
+                  "\n\t\t\t      " + int.MaxValue.ToString() + " (By default: " + Program.INUM        + 
+                  ").\n\n"                                                                            +
                   "\t\r-o  --output-file     \rOutput file name.\n"                                   +
                   "\t\r-w  --overwrite       \rOverwrites the existing output file(s) without"        +
                   "\n\t\t\t      asking.\n\n"                                                         +
-                  "\t\r-h  --help            \rShow this screen.\n"                                   +
+                  "\t\r--help                \rShow this screen.\n"                                   +
                   "\n \rSamples:\n\n"                                                                 +
                   "\t\r<1>\r crypter -o myfile.b64 -m b64 -e myfile.txt\n"                            +
                   "\t\r<2>\r crypter -o myfile.txt -m b64 -d myfile.b64\n"                            +
@@ -189,6 +213,9 @@ namespace crypter
                       , ConsoleColor.Gray
 
                       , ConsoleColor.Yellow
+
+                      , ConsoleColor.White
+                      , ConsoleColor.Gray
 
                       , ConsoleColor.White
                       , ConsoleColor.Gray
@@ -247,16 +274,17 @@ namespace crypter
 
         static void Main (string[] args)
         {
-            string salt      = Program.SALT;
-            string algorithm = Program.ALGORITHM;
-            string iv        = Program.IV;
-            string pwd       = string.Empty;
-            string mode      = string.Empty;
-            string ifn       = string.Empty;
-            string ofn       = string.Empty;
-            byte   op        = 0;
-            int    iks       = 256;
-            bool   bow       = false;
+            string salt = Program.SALT;
+            string hash = Program.HASH;
+            string iv   = Program.IV;
+            string pwd  = string.Empty;
+            string mode = string.Empty;
+            string ifn  = string.Empty;
+            string ofn  = string.Empty;
+            byte   op   = 0;
+            int    iks  = 256;
+            int    inum = Program.INUM; 
+            bool   bow  = false;
 
             int l = args.Length;
 
@@ -315,12 +343,13 @@ namespace crypter
                                 mode = args[++i].ToLower();
                                 break;
 
-                            case "-a":
-                            case "--algorithm":
-                                switch (algorithm = args[++i].ToUpper())
+                            case "-h":
+                            case "--hash":
+                                switch (hash = args[++i].ToUpper())
                                 {
-                                    case Program.ALGORITHM:
                                     case "MD5":
+                                    case "SHA1":
+                                    case "SHA256":
                                         break;
 
                                     default:
@@ -344,7 +373,12 @@ namespace crypter
                                 );
                                 break;
 
-                            case "-h":
+                            case "-n":  
+                            case "--num-iterations":
+                                if ((inum = Convert.ToInt32(args[++i])) < 1)
+                                    inum = 1;
+                                break;
+
                             case "--help":
                                 Program.ShowHelp();
                                 Environment.Exit(0);
@@ -431,10 +465,10 @@ namespace crypter
                                 }
 
                                 if (op == 1)
-                                    bf = Program.EncryptToAes(bf, pwd, ref ln, salt, algorithm, iv, iks);
+                                    bf = Program.Encrypt(bf, pwd, ref ln, salt, hash, iv, iks, inum);
 
                                 else if (op == 2)
-                                    bf = Program.DecryptFromAes(bf, pwd, ref ln, salt, algorithm, iv, iks);
+                                    bf = Program.Decrypt(bf, pwd, ref ln, salt, hash, iv, iks, inum);
 
                                 break;
 
