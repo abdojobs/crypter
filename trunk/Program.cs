@@ -181,8 +181,7 @@ namespace crypter
             byte[]          iv = Encoding.ASCII.GetBytes(siv);
             byte[]          rt = null;
 
-            rm.Mode    = mode;
-            rm.Padding = PaddingMode.PKCS7;
+            rm.Mode = mode;
 
             using (ICryptoTransform ct = rm.CreateEncryptor(kg, iv))
             {
