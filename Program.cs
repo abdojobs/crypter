@@ -31,13 +31,92 @@ namespace crypter
 
         //----------------------------------------------------------------------------------
 
-        private const string     SALT = "PkZrST68";
-        private const string     IV   = "AgTxp96*Zf8e12Xy";
-        private const string     HASH = "SHA256";
-        private const int        INUM = 2;
-        private const CipherMode CM   = CipherMode.CBC; 
+        private const string  SALT = "PkZrST68";
+        private const string  IV   = "AgTxp96*Zf8e12Xy";
+        private const string  HASH = "SHA256";
+        private const int     INUM = 2;
 
         //--------------------------------------------------------------------------------
+        // PBKDF2Sha256GetBytes
+        //--------------------------------------------------------------------------------
+        // Author: 
+        // Peter O.
+        //--------------------------------------------------------------------------------
+        // Refs: 
+        // http://upokecenter.dreamhosters.com/articles/2012/02/net-pbkdf2-sha256/
+        // http://stackoverflow.com/questions/18648084/rfc2898-pbkdf2-with-sha256-as-digest-in-c-sharp
+        //--------------------------------------------------------------------------------
+
+        public static byte[] PBKDF2Sha256GetBytes
+        (
+              int    dklen
+            , byte[] password
+            , byte[] salt
+            , int    iterationCount
+        ){
+
+            using (var hmac = new HMACSHA256(password))
+            {
+                int hashLength = hmac.HashSize / 8;
+
+                if ((hmac.HashSize & 7) != 0)
+                    hashLength++;
+
+                int keyLength = dklen / hashLength;
+
+                /*
+                if ((long)dklen > (0xFFFFFFFFL * hashLength) || dklen < 0)
+                    throw new ArgumentOutOfRangeException("dklen");
+                */
+                
+                if (dklen % hashLength != 0)
+                    keyLength++;
+            
+                byte[] extendedkey = new byte[salt.Length + 4];
+                Buffer.BlockCopy(salt, 0, extendedkey, 0, salt.Length);
+
+                using (var ms = new System.IO.MemoryStream())
+                {
+                    for (int i = 0; i < keyLength; i++)
+                    {
+                        extendedkey[salt.Length]     = (byte)(((i + 1) >> 24) & 0xFF);
+                        extendedkey[salt.Length + 1] = (byte)(((i + 1) >> 16) & 0xFF);
+                        extendedkey[salt.Length + 2] = (byte)(((i + 1) >> 8) & 0xFF);
+                        extendedkey[salt.Length + 3] = (byte)(((i + 1)) & 0xFF);
+
+                        byte[] u = hmac.ComputeHash(extendedkey);
+                        Array.Clear(extendedkey, salt.Length, 4);
+                        byte[] f = u;
+
+                        for (int j = 1; j < iterationCount; j++)
+                        {
+                            u = hmac.ComputeHash(u);
+
+                            for (int k = 0; k < f.Length; k++)
+                                f[k] ^= u[k];
+                        }
+
+                        ms.Write(f, 0, f.Length);
+                        Array.Clear(u, 0, u.Length);
+                        Array.Clear(f, 0, f.Length);
+                    }
+
+                    byte[] dk = new byte[dklen];
+                    ms.Position = 0;
+                    ms.Read(dk, 0, dklen);
+                    ms.Position = 0;
+
+                    for (long i = 0; i < ms.Length; i++)
+                        ms.WriteByte(0);
+
+                    Array.Clear(extendedkey, 0, extendedkey.Length);
+                    return dk;
+                }
+            }
+        }
+
+        //--------------------------------------------------------------------------------
+
 
         private static byte[] KeyGen
         (
@@ -50,14 +129,25 @@ namespace crypter
             switch ((hash = hash.ToUpper()))
             {
                 case "SHA256":
+                    /*
                     Rfc2898DeriveBytes rd = new Rfc2898DeriveBytes
                     (
                           pwd
                         , Encoding.ASCII.GetBytes(salt)
                         , inum
                     );
+                    
 
                     return rd.GetBytes(keysize / 8);
+                    */
+                    
+                    return PBKDF2Sha256GetBytes
+                    (
+                          keysize / 8
+                        , Encoding.ASCII.GetBytes(pwd)
+                        , Encoding.ASCII.GetBytes(salt)
+                        , inum
+                    );
 
                 default:
                     PasswordDeriveBytes pd = new PasswordDeriveBytes
@@ -76,13 +166,13 @@ namespace crypter
 
         private static byte[] Encrypt
         (
-              byte[]     src
-            , string     pwd
-            , ref long   length
+              byte[]     src                                                                   // Source bytes. 
+            , string     pwd                                                                   // Password.
+            , ref long   length                                                                // Source long.
             , string     salt
             , string     hash                                         
             , string     siv                                                                   // Initial Vector Needs to be 16 ASCII characters long.
-            , CipherMode ciphermode
+            , CipherMode mode
             , int        keysize                                                      
             , int        inum                                       
         ){
@@ -91,7 +181,8 @@ namespace crypter
             byte[]          iv = Encoding.ASCII.GetBytes(siv);
             byte[]          rt = null;
 
-            rm.Mode = ciphermode;
+            rm.Mode    = mode;
+            rm.Padding = PaddingMode.PKCS7;
 
             using (ICryptoTransform ct = rm.CreateEncryptor(kg, iv))
             {
@@ -127,7 +218,7 @@ namespace crypter
             , string     salt
             , string     hash
             , string     siv
-            , CipherMode ciphermode
+            , CipherMode mode
             , int        keysize
             , int        inum
         ){
@@ -137,7 +228,7 @@ namespace crypter
             byte[]          bf = new byte[length];
 
             length  = 0;
-            rm.Mode = ciphermode;
+            rm.Mode = mode;
 
             using (ICryptoTransform ct = rm.CreateDecryptor(kg, iv))
             {
@@ -196,7 +287,7 @@ namespace crypter
                   "\t\r-k  --key-size        \rFor AES only. 128, 192, or 256 (By default).\n"        +
                   "\t\r-p  --password        \rFor AES only. Word or phrase. Required parameter.\n"   +
                   "\t\r-s  --salt            \rFor AES only. At least 8 characters for SHA256"        +
-                  "\n\t\t\t      (By default: \"" + Program.SALT + "\". Old: \"PkZrST6\").\n\n"       +
+                  "\n\t\t\t      (By default: \"" + Program.SALT + "\").\n\n"                         +
                   "\t\r-h  --hash            \rFor AES only. MD5, SHA1 or SHA256 (By default).\n"     +
                   "\t\r-c  --cipher-mode     \rFor AES only. ECB or CBC (By default).\n" +
                   "\t\r-i  --initial-vector  \rFor AES only. Needs to be 16 ASCII characte"           +
@@ -285,7 +376,7 @@ namespace crypter
 
         static void Main (string[] args)
         {
-            CipherMode cm   = Program.CM;
+            CipherMode cm   = CipherMode.CBC;
             string     salt = Program.SALT;
             string     hash = Program.HASH;
             string     iv   = Program.IV;
